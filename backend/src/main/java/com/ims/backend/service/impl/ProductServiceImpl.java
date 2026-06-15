@@ -66,6 +66,7 @@ public class ProductServiceImpl implements ProductService {
                         p.getCategory(),
                         p.getBrand(),
                         p.getAttributes(),
+                        p.getCostPrice(),
                         p.getSellingPrice(),
                         p.getCurrentStock()
                 ))

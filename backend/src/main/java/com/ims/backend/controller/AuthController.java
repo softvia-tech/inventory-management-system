@@ -3,6 +3,7 @@ package com.ims.backend.controller;
 import com.ims.backend.dto.AuthResponse;
 import com.ims.backend.dto.LoginRequest;
 import com.ims.backend.dto.RegisterRequest;
+import com.ims.backend.dto.RefreshTokenRequest;
 import com.ims.backend.entity.ApprovalStatus;
 import com.ims.backend.entity.User;
 import com.ims.backend.exception.DuplicateResourceException;
@@ -48,8 +49,9 @@ public class AuthController {
 
             User user = (User) authentication.getPrincipal();
             String token = jwtService.generateToken(user);
+            String refreshToken = jwtService.generateRefreshToken(user);
 
-            return ResponseEntity.ok(new AuthResponse(token, user.getMobileNumber(), user.getRole()));
+            return ResponseEntity.ok(new AuthResponse(token, refreshToken, user.getMobileNumber(), user.getRole()));
         } catch (DisabledException e) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("message", "Your account is pending approval by an administrator."));
         } catch (AuthenticationException e) {
@@ -75,5 +77,25 @@ public class AuthController {
         userRepository.save(newUser);
 
         return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "Account created successfully. Please wait for administrator approval."));
+    }
+
+    @Operation(summary = "Refresh Token", description = "Generates a new access token using a valid refresh token")
+    @PostMapping("/refresh")
+    public ResponseEntity<?> refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        String refreshToken = request.refreshToken();
+        try {
+            String mobileNumber = jwtService.extractUsername(refreshToken);
+            if (mobileNumber != null) {
+                User user = userRepository.findByMobileNumber(mobileNumber).orElse(null);
+
+                if (user != null && jwtService.isTokenValid(refreshToken, user)) {
+                    String newAccessToken = jwtService.generateToken(user);
+                    return ResponseEntity.ok(new AuthResponse(newAccessToken, refreshToken, user.getMobileNumber(), user.getRole()));
+                }
+            }
+        } catch (Exception e) {
+            // Token is invalid or expired
+        }
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("message", "Invalid or expired refresh token"));
     }
 }

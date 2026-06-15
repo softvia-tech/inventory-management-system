@@ -2,9 +2,11 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { LayoutDashboard, Package, ShoppingCart, Receipt, Settings, LogOut, Package2, Users } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 
 const Sidebar = () => {
   const { user, logout } = useAuth();
+  const { theme } = useTheme();
   
   const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'INVENTORY_ADMIN', 'POS_ADMIN'] },
@@ -28,10 +30,14 @@ const Sidebar = () => {
       height: '100vh',
     }}>
       <div style={{ padding: '24px', display: 'flex', alignItems: 'center', gap: '12px', borderBottom: '1px solid var(--border-light)' }}>
-        <div style={{ background: 'var(--primary-color)', padding: '8px', borderRadius: '8px', display: 'flex' }}>
-          <Package2 size={24} color="white" />
+        <div style={{ background: theme.systemLogo ? 'transparent' : 'var(--primary-color)', padding: theme.systemLogo ? '0' : '8px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', width: '40px', height: '40px' }}>
+          {theme.systemLogo ? (
+            <img src={theme.systemLogo} alt="System Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          ) : (
+            <Package2 size={24} color="white" />
+          )}
         </div>
-        <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, letterSpacing: '0.5px' }}>IMS Pro</h1>
+        <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0, letterSpacing: '0.5px' }}>{theme.systemTitle || 'IMS Pro'}</h1>
       </div>
 
       <nav style={{ flex: 1, padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>

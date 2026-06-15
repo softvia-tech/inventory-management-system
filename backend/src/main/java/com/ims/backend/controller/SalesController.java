@@ -50,4 +50,12 @@ public class SalesController {
     public ResponseEntity<SalesResponse> getSaleById(@PathVariable UUID id) {
         return ResponseEntity.ok(salesService.getSaleById(id));
     }
+
+    @Operation(summary = "Get sales report", description = "Retrieves an aggregated sales report based on frequency")
+    @PreAuthorize("hasAnyRole('INVENTORY_ADMIN', 'POS_ADMIN', 'SUPER_ADMIN')")
+    @GetMapping("/report")
+    public ResponseEntity<com.ims.backend.dto.SalesReportSummaryResponse> getSalesReport(
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "ALL_TIME") String frequency) {
+        return ResponseEntity.ok(salesService.getSalesReport(frequency));
+    }
 }

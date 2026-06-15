@@ -12,6 +12,7 @@ public record ProductListResponse(
         String category,
         String brand,
         Map<String, String> attributes,
+        BigDecimal costPrice,
         BigDecimal sellingPrice,
         Integer currentStock
 ) {

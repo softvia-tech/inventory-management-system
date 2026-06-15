@@ -18,8 +18,43 @@ export const fetchApi = async (endpoint, options = {}) => {
   });
 
   if (response.status === 401) {
-    // Token expired or invalid
+    // Try refreshing token
+    if (endpoint !== '/auth/login' && endpoint !== '/auth/refresh') {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const refreshRes = await fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refreshToken })
+          });
+          
+          if (refreshRes.ok) {
+            const data = await refreshRes.json();
+            localStorage.setItem('token', data.token);
+            if (data.refreshToken) localStorage.setItem('refreshToken', data.refreshToken);
+            
+            // Retry original request
+            const newHeaders = { ...headers, 'Authorization': `Bearer ${data.token}` };
+            const retryRes = await fetch(`${API_BASE_URL}${endpoint}`, {
+              ...options,
+              headers: newHeaders,
+            });
+            
+            if (retryRes.ok) {
+              const text = await retryRes.text();
+              return text ? JSON.parse(text) : {};
+            }
+          }
+        } catch (err) {
+          console.error("Token refresh failed", err);
+        }
+      }
+    }
+
+    // Token expired or invalid, and refresh failed
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     window.location.href = '/login';
     throw new Error('Unauthorized');

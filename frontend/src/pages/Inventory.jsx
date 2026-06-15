@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { fetchApi } from '../services/api';
 import { Plus, Edit2, PackagePlus, X, Trash2 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 
 const Inventory = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const filterBrand = searchParams.get('brand') || '';
   
   // Product Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -22,15 +25,22 @@ const Inventory = () => {
   // Scan Modal State
   const [isScanModalOpen, setIsScanModalOpen] = useState(false);
   const [scanBarcode, setScanBarcode] = useState('');
+  const [selectedBrandForAdd, setSelectedBrandForAdd] = useState('');
 
   useEffect(() => {
     loadProducts();
   }, []);
 
+  const [dbBrands, setDbBrands] = useState([]);
+
   const loadProducts = async () => {
     try {
-      const data = await fetchApi('/products');
-      setProducts(data);
+      const [productsData, brandsData] = await Promise.all([
+         fetchApi('/products'),
+         fetchApi('/brands').catch(() => [])
+      ]);
+      setProducts(productsData);
+      setDbBrands(brandsData);
     } catch (e) {
       console.error(e);
     } finally {
@@ -38,8 +48,9 @@ const Inventory = () => {
     }
   };
 
-  const openScanModal = () => {
+  const openScanModal = (brand = '') => {
     setScanBarcode('');
+    setSelectedBrandForAdd(brand);
     setIsScanModalOpen(true);
   };
 
@@ -50,7 +61,7 @@ const Inventory = () => {
       openStockModal(product);
     } catch (err) {
       setIsScanModalOpen(false);
-      openAddModal(barcodeVal);
+      openAddModal(barcodeVal, selectedBrandForAdd);
     }
   };
 
@@ -64,9 +75,9 @@ const Inventory = () => {
     processScannedBarcode(scanBarcode);
   };
 
-  const openAddModal = (initialBarcode = '') => {
+  const openAddModal = (initialBarcode = '', prefillBrand = '') => {
     setEditingProductId(null);
-    setFormData({ sku: '', barcode: initialBarcode, name: '', category: '', brand: '', costPrice: '', profitPercentage: '', initialStock: '' });
+    setFormData({ sku: '', barcode: initialBarcode, name: '', category: '', brand: prefillBrand, costPrice: '', profitPercentage: '', initialStock: '' });
     setAttributes([{ key: '', value: '' }]);
     setIsModalOpen(true);
   };
@@ -164,15 +175,56 @@ const Inventory = () => {
     }
   };
 
+  const uniqueBrandsFromProducts = Array.from(new Set(products.map(p => p.brand).filter(b => b && b.trim() !== '')));
+  
+  // Combine db brands and unique brands
+  const combinedBrands = [...dbBrands];
+  uniqueBrandsFromProducts.forEach(productBrand => {
+      if (!combinedBrands.find(b => b.name.toLowerCase() === productBrand.toLowerCase())) {
+          combinedBrands.push({ id: productBrand, name: productBrand, logoBase64: null });
+      }
+  });
+
   if (loading) return <div>Loading inventory...</div>;
+
+  const filteredProducts = filterBrand 
+    ? products.filter(p => p.brand && p.brand.toLowerCase() === filterBrand.toLowerCase()) 
+    : products;
 
   return (
     <div className="animate-fade-in">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <h2 style={{ fontSize: '28px', margin: 0 }}>Inventory Management</h2>
-        <button className="btn btn-primary" onClick={openScanModal}>
-          <Plus size={18} /> Scan / Add Item
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          {combinedBrands.map(brand => (
+            <button key={brand.id} className="btn btn-primary" onClick={() => openScanModal(brand.name)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px' }}>
+              {brand.logoBase64 ? (
+                <img src={brand.logoBase64} alt={brand.name} style={{ height: '20px', width: '20px', objectFit: 'contain', borderRadius: '4px', backgroundColor: 'white' }} />
+              ) : (
+                <Plus size={18} />
+              )}
+              {brand.name}
+            </button>
+          ))}
+          <button className="btn btn-secondary" onClick={() => openScanModal('')}>
+            <Plus size={18} /> {combinedBrands.length > 0 ? 'Other Brand / Item' : 'Scan / Add Item'}
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '16px', gap: '12px' }}>
+        <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Filter by Brand:</span>
+        <select 
+           value={filterBrand} 
+           onChange={(e) => setSearchParams(e.target.value ? { brand: e.target.value } : {})}
+           className="glass-panel"
+           style={{ padding: '8px 16px', border: '1px solid rgba(255, 255, 255, 0.1)', borderRadius: '8px', background: 'rgba(0, 0, 0, 0.2)', color: 'white', outline: 'none', cursor: 'pointer' }}
+        >
+           <option value="">All Brands</option>
+           {combinedBrands.map(b => (
+              <option key={b.name} value={b.name}>{b.name}</option>
+           ))}
+        </select>
       </div>
 
       <div className="glass-panel" style={{ overflow: 'hidden' }}>
@@ -188,7 +240,7 @@ const Inventory = () => {
             </tr>
           </thead>
           <tbody>
-            {products.map(p => (
+            {filteredProducts.map(p => (
               <tr key={p.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
                 <td style={{ padding: '16px', color: 'var(--text-secondary)' }}>{p.sku}</td>
                 <td style={{ padding: '16px' }}>
@@ -219,7 +271,7 @@ const Inventory = () => {
                 </td>
               </tr>
             ))}
-            {products.length === 0 && (
+            {filteredProducts.length === 0 && (
               <tr><td colSpan="6" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-secondary)' }}>No products found.</td></tr>
             )}
           </tbody>

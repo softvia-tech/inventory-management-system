@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
         setUser(JSON.parse(storedUser));
       } catch (e) {
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
       }
     }
@@ -32,10 +33,11 @@ export const AuthProvider = ({ children }) => {
         body: JSON.stringify({ mobileNumber, password }),
       });
       
-      const { token, role } = response;
+      const { token, refreshToken, role } = response;
       const userData = { mobileNumber, role };
       
       localStorage.setItem('token', token);
+      if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
       localStorage.setItem('user', JSON.stringify(userData));
       setUser(userData);
       
@@ -48,6 +50,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     localStorage.removeItem('user');
     setUser(null);
   };

@@ -156,3 +156,19 @@ COMMENT ON COLUMN inventory_audit_logs.action_type IS 'Enforced values: STOCK_AD
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode);;
 CREATE INDEX IF NOT EXISTS idx_audit_product ON inventory_audit_logs(product_id);;
 CREATE INDEX IF NOT EXISTS idx_sales_items_tx ON sales_items(transaction_id);;
+
+-- 7. TABLE: brands
+CREATE TABLE IF NOT EXISTS brands (
+    id UUID PRIMARY KEY,
+    name VARCHAR(100) NOT NULL UNIQUE,
+    logo_base64 TEXT,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);;
+
+COMMENT ON TABLE brands IS 'Stores brand names and their base64 logos.';;
+
+DROP TRIGGER IF EXISTS set_timestamp_brands ON brands;;
+CREATE TRIGGER set_timestamp_brands
+BEFORE UPDATE ON brands
+FOR EACH ROW
+EXECUTE FUNCTION trigger_set_timestamp();;
