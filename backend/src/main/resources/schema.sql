@@ -172,3 +172,11 @@ CREATE TRIGGER set_timestamp_brands
 BEFORE UPDATE ON brands
 FOR EACH ROW
 EXECUTE FUNCTION trigger_set_timestamp();;
+
+-- ===========================================================================
+-- RETURNS MANAGEMENT SYSTEM EXTENSIONS (PHASE 1)
+-- ===========================================================================
+
+ALTER TABLE sales_transactions ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'COMPLETED';;
+ALTER TABLE sales_transactions ADD COLUMN IF NOT EXISTS refunded_amount DECIMAL(10, 2) DEFAULT 0.00;;
+ALTER TABLE sales_items ADD COLUMN IF NOT EXISTS quantity_returned INT DEFAULT 0;;

@@ -59,6 +59,14 @@ public class SalesTransaction {
     private Boolean isSynced;
 
     @Builder.Default
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "COMPLETED";
+
+    @Builder.Default
+    @Column(name = "refunded_amount", nullable = false, precision = 10, scale = 2)
+    private BigDecimal refundedAmount = BigDecimal.ZERO;
+
+    @Builder.Default
     @OneToMany(mappedBy = "transaction", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SalesItem> items = new ArrayList<>();
 

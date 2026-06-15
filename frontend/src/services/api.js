@@ -1,5 +1,12 @@
 export const API_BASE_URL = '/api';
 
+export const deleteSetting = async (id) => fetchApi(`/settings/${id}`, { method: 'DELETE' });
+
+export const processReturn = async (transactionId, returnData) => fetchApi(`/sales/${transactionId}/returns`, {
+  method: 'POST',
+  body: JSON.stringify(returnData)
+});
+
 export const fetchApi = async (endpoint, options = {}) => {
   const token = localStorage.getItem('token');
   

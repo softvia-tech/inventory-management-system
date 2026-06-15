@@ -1,5 +1,6 @@
 package com.ims.backend.service;
 
+import com.ims.backend.dto.ReturnRequest;
 import com.ims.backend.dto.SalesCreateRequest;
 import com.ims.backend.dto.SalesResponse;
 
@@ -13,4 +14,5 @@ public interface SalesService {
     List<SalesResponse> getAllSales();
     SalesResponse getSaleById(UUID id);
     SalesReportSummaryResponse getSalesReport(String frequency);
+    SalesResponse processReturn(UUID transactionId, ReturnRequest request);
 }

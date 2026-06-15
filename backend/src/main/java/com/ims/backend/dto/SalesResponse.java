@@ -12,5 +12,7 @@ public record SalesResponse(
     BigDecimal totalAmount,
     UUID createdBy,
     OffsetDateTime timestamp,
+    String status,
+    BigDecimal refundedAmount,
     List<SalesItemResponse> items
 ) {}

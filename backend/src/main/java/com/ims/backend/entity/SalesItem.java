@@ -45,4 +45,8 @@ public class SalesItem {
 
     @Column(name = "unit_price_at_sale", nullable = false, precision = 10, scale = 2)
     private BigDecimal unitPriceAtSale;
+
+    @Builder.Default
+    @Column(name = "quantity_returned", nullable = false)
+    private Integer quantityReturned = 0;
 }

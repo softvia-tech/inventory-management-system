@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Search, Trash2 } from 'lucide-react';
+import { ShoppingCart, Search, Trash2, X, CreditCard, Banknote, Smartphone } from 'lucide-react';
 import { fetchApi } from '../services/api';
 import { useBarcodeScanner } from '../hooks/useBarcodeScanner';
 
@@ -8,6 +8,9 @@ const POS = () => {
   const [cart, setCart] = useState([]);
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [selectedPaymentMode, setSelectedPaymentMode] = useState(null); // CASH, CARD, UPI
 
   const processScannedBarcode = async (barcodeVal) => {
     setError('');
@@ -48,17 +51,24 @@ const POS = () => {
 
   const total = cart.reduce((sum, item) => sum + (item.sellingPrice * item.quantity), 0);
 
-  const handleCheckout = async () => {
+  const handleCheckoutClick = () => {
     if (cart.length === 0) return;
+    setSelectedPaymentMode(null);
+    setIsCheckoutModalOpen(true);
+  };
+
+  const processPayment = async () => {
+    if (cart.length === 0 || !selectedPaymentMode) return;
     setIsProcessing(true);
     try {
       const payload = {
-        paymentMode: "CASH", // Hardcoded for now
+        paymentMode: selectedPaymentMode,
         items: cart.map(item => ({ productId: item.id, quantity: item.quantity }))
       };
       const response = await fetchApi('/sales', { method: 'POST', body: JSON.stringify(payload) });
       alert(`Sale processed successfully! Invoice: ${response.invoiceNumber}`);
       setCart([]);
+      setIsCheckoutModalOpen(false);
     } catch (err) {
       alert('Checkout failed: ' + err.message);
     } finally {
@@ -132,7 +142,7 @@ const POS = () => {
           </div>
           
           <button 
-            onClick={handleCheckout} 
+            onClick={handleCheckoutClick} 
             className="btn btn-primary" 
             style={{ width: '100%', padding: '16px', fontSize: '18px' }}
             disabled={cart.length === 0 || isProcessing}
@@ -141,6 +151,92 @@ const POS = () => {
           </button>
         </div>
       </div>
+
+      {/* Checkout Modal */}
+      {isCheckoutModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content animate-fade-in" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Select Payment Method</h2>
+              <button className="btn btn-secondary" onClick={() => setIsCheckoutModalOpen(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="modal-body">
+              <div style={{ marginBottom: '24px', textAlign: 'center' }}>
+                <h3 style={{ fontSize: '32px', margin: '0', color: 'var(--primary-color)' }}>₹{total.toFixed(2)}</h3>
+                <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>Total Amount Due</p>
+              </div>
+
+              {!selectedPaymentMode ? (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ display: 'flex', flexDirection: 'column', padding: '24px', gap: '12px' }}
+                    onClick={() => setSelectedPaymentMode('CASH')}
+                  >
+                    <Banknote size={32} color="#10b981" />
+                    <span style={{ fontWeight: 'bold' }}>Cash</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ display: 'flex', flexDirection: 'column', padding: '24px', gap: '12px' }}
+                    onClick={() => setSelectedPaymentMode('CARD')}
+                  >
+                    <CreditCard size={32} color="#3b82f6" />
+                    <span style={{ fontWeight: 'bold' }}>Card</span>
+                  </button>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ display: 'flex', flexDirection: 'column', padding: '24px', gap: '12px' }}
+                    onClick={() => setSelectedPaymentMode('UPI')}
+                  >
+                    <Smartphone size={32} color="#8b5cf6" />
+                    <span style={{ fontWeight: 'bold' }}>UPI</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '20px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                  {selectedPaymentMode === 'CASH' ? (
+                    <div>
+                      <Banknote size={48} color="#10b981" style={{ marginBottom: '16px' }} />
+                      <h3 style={{ margin: '0 0 8px 0' }}>Cash Payment</h3>
+                      <p style={{ color: 'var(--text-secondary)' }}>Collect ₹{total.toFixed(2)} in cash from the customer.</p>
+                    </div>
+                  ) : (
+                    <div>
+                      {selectedPaymentMode === 'CARD' ? (
+                        <CreditCard size={48} color="#3b82f6" style={{ marginBottom: '16px' }} />
+                      ) : (
+                        <Smartphone size={48} color="#8b5cf6" style={{ marginBottom: '16px' }} />
+                      )}
+                      <h3 style={{ margin: '0 0 8px 0' }}>SBI Terminal Payment</h3>
+                      <p style={{ color: 'var(--text-secondary)' }}>
+                        Please enter <strong>₹{total.toFixed(2)}</strong> on the physical SBI POS Terminal.
+                      </p>
+                      <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(59, 130, 246, 0.1)', border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '8px', color: 'var(--primary-color)' }}>
+                        Wait for the terminal to print the success receipt before confirming here.
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setSelectedPaymentMode(null)}>Back</button>
+                    <button 
+                      className="btn btn-primary" 
+                      style={{ flex: 2 }} 
+                      onClick={processPayment}
+                      disabled={isProcessing}
+                    >
+                      {isProcessing ? 'Processing...' : 'Payment Confirmed'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

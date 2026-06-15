@@ -1,5 +1,6 @@
 package com.ims.backend.controller;
 
+import com.ims.backend.dto.ReturnRequest;
 import com.ims.backend.dto.SalesCreateRequest;
 import com.ims.backend.dto.SalesResponse;
 import com.ims.backend.service.SalesService;
@@ -57,5 +58,15 @@ public class SalesController {
     public ResponseEntity<com.ims.backend.dto.SalesReportSummaryResponse> getSalesReport(
             @org.springframework.web.bind.annotation.RequestParam(defaultValue = "ALL_TIME") String frequency) {
         return ResponseEntity.ok(salesService.getSalesReport(frequency));
+    }
+
+    @Operation(summary = "Process a return", description = "Processes a full or partial return for a sales transaction, restocking inventory.")
+    @PreAuthorize("hasAnyRole('POS_ADMIN', 'SUPER_ADMIN')")
+    @PostMapping("/{id}/returns")
+    public ResponseEntity<SalesResponse> processReturn(
+            @PathVariable UUID id, 
+            @Valid @RequestBody ReturnRequest request) {
+        SalesResponse response = salesService.processReturn(id, request);
+        return ResponseEntity.ok(response);
     }
 }

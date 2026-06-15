@@ -1,5 +1,7 @@
 package com.ims.backend.service.impl;
 
+import com.ims.backend.dto.ReturnItemRequest;
+import com.ims.backend.dto.ReturnRequest;
 import com.ims.backend.dto.SalesCreateRequest;
 import com.ims.backend.dto.SalesItemRequest;
 import com.ims.backend.dto.SalesItemResponse;
@@ -136,7 +138,9 @@ public class SalesServiceImpl implements SalesService {
                                                 item.getQuantitySold(),
                                                 item.getUnitPriceAtSale(),
                                                 item.getUnitPriceAtSale()
-                                                                .multiply(BigDecimal.valueOf(item.getQuantitySold()))))
+                                                                .multiply(BigDecimal.valueOf(item.getQuantitySold())),
+                                                item.getQuantityReturned(),
+                                                item.getProduct().getAttributes()))
                                 .collect(Collectors.toList());
 
                 return new SalesResponse(
@@ -146,7 +150,85 @@ public class SalesServiceImpl implements SalesService {
                                 transaction.getTotalAmount(),
                                 transaction.getCreatedBy().getId(),
                                 transaction.getTimestamp(),
+                                transaction.getStatus(),
+                                transaction.getRefundedAmount(),
                                 itemResponses);
+        }
+
+        @Override
+        @Transactional
+        public SalesResponse processReturn(UUID transactionId, ReturnRequest request) {
+                String currentMobileNumber = org.springframework.security.core.context.SecurityContextHolder
+                                .getContext().getAuthentication().getName();
+                User user = userRepository.findByMobileNumber(currentMobileNumber)
+                                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
+
+                SalesTransaction transaction = salesTransactionRepository.findById(transactionId)
+                                .orElseThrow(() -> new ResourceNotFoundException("Sales transaction not found"));
+
+                if ("REFUNDED".equals(transaction.getStatus())) {
+                        throw new IllegalStateException("Transaction is already fully refunded");
+                }
+
+                BigDecimal totalRefundForThisRequest = BigDecimal.ZERO;
+                int totalItemsReturnedThisRequest = 0;
+
+                for (ReturnItemRequest returnReq : request.items()) {
+                        SalesItem salesItem = transaction.getItems().stream()
+                                        .filter(item -> item.getId().equals(returnReq.salesItemId()))
+                                        .findFirst()
+                                        .orElseThrow(() -> new ResourceNotFoundException("Sales item not found in this transaction"));
+
+                        if (returnReq.quantityToReturn() == null || returnReq.quantityToReturn() <= 0) continue;
+
+                        if (salesItem.getQuantityReturned() + returnReq.quantityToReturn() > salesItem.getQuantitySold()) {
+                                throw new IllegalStateException("Cannot return more than quantity sold for product: " + salesItem.getProduct().getName());
+                        }
+
+                        // Update SalesItem
+                        salesItem.setQuantityReturned(salesItem.getQuantityReturned() + returnReq.quantityToReturn());
+
+                        // Update Refund Amount
+                        BigDecimal refundAmount = salesItem.getUnitPriceAtSale().multiply(BigDecimal.valueOf(returnReq.quantityToReturn()));
+                        totalRefundForThisRequest = totalRefundForThisRequest.add(refundAmount);
+                        totalItemsReturnedThisRequest += returnReq.quantityToReturn();
+
+                        // Restock Inventory
+                        Product product = salesItem.getProduct();
+                        int previousStock = product.getCurrentStock();
+                        product.setCurrentStock(previousStock + returnReq.quantityToReturn());
+                        productRepository.save(product);
+
+                        // Audit Log 
+                        InventoryAuditLog auditLog = InventoryAuditLog.builder()
+                                        .product(product)
+                                        .actionType(ActionType.STOCK_ADD) 
+                                        .previousQuantity(previousStock)
+                                        .newQuantity(product.getCurrentStock())
+                                        .transaction(transaction)
+                                        .updatedBy(user)
+                                        .isSynced(false)
+                                        .build();
+                        auditLogRepository.save(auditLog);
+                }
+
+                if (totalItemsReturnedThisRequest > 0) {
+                        transaction.setRefundedAmount(transaction.getRefundedAmount().add(totalRefundForThisRequest));
+                        
+                        // Check if fully refunded
+                        boolean allReturned = true;
+                        for (SalesItem item : transaction.getItems()) {
+                                if (item.getQuantityReturned() < item.getQuantitySold()) {
+                                        allReturned = false;
+                                        break;
+                                }
+                        }
+                        
+                        transaction.setStatus(allReturned ? "REFUNDED" : "PARTIAL_REFUND");
+                        transaction = salesTransactionRepository.save(transaction);
+                }
+
+                return mapToResponse(transaction);
         }
 
         @Override
@@ -183,11 +265,14 @@ public class SalesServiceImpl implements SalesService {
 
                 for (SalesTransaction tx : allTransactions) {
                         for (SalesItem item : tx.getItems()) {
+                                int netQuantity = item.getQuantitySold() - item.getQuantityReturned();
+                                if (netQuantity <= 0) continue; // Skip if fully returned
+
                                 BigDecimal basePrice = item.getProduct().getCostPrice() != null
                                                 ? item.getProduct().getCostPrice()
                                                 : BigDecimal.ZERO;
                                 BigDecimal itemBasePriceTotal = basePrice
-                                                .multiply(BigDecimal.valueOf(item.getQuantitySold()));
+                                                .multiply(BigDecimal.valueOf(netQuantity));
 
                                 // Add to global cumulative base price
                                 cumulativeBasePrice = cumulativeBasePrice.add(itemBasePriceTotal);
@@ -200,7 +285,7 @@ public class SalesServiceImpl implements SalesService {
                                         }
 
                                         BigDecimal itemSellingPriceTotal = item.getUnitPriceAtSale()
-                                                        .multiply(BigDecimal.valueOf(item.getQuantitySold()));
+                                                        .multiply(BigDecimal.valueOf(netQuantity));
 
                                         BrandSalesReportResponse brandReport = brandReportsMap.getOrDefault(brand,
                                                         new BrandSalesReportResponse(brand, BigDecimal.ZERO,

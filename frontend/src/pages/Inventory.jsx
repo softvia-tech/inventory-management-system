@@ -176,6 +176,32 @@ const Inventory = () => {
   };
 
   const uniqueBrandsFromProducts = Array.from(new Set(products.map(p => p.brand).filter(b => b && b.trim() !== '')));
+  const uniqueCategories = Array.from(new Set(products.map(p => p.category).filter(c => c && c.trim() !== '')));
+  
+  const uniqueAttributeKeys = new Set(['Size', 'Color', 'Material', 'Gender', 'Style']);
+  const attributeValuesByKey = {
+    'Size': new Set(['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL']),
+    'Color': new Set(['Black', 'White', 'Red', 'Blue', 'Green', 'Yellow', 'Grey', 'Brown', 'Navy', 'Pink', 'Purple'])
+  };
+
+  products.forEach(p => {
+    if (p.attributes) {
+      Object.entries(p.attributes).forEach(([k, v]) => {
+        const key = k.trim();
+        const val = String(v).trim();
+        if (key) {
+           const matchingKey = Array.from(uniqueAttributeKeys).find(existing => existing.toLowerCase() === key.toLowerCase()) || key;
+           uniqueAttributeKeys.add(matchingKey);
+           if (val) {
+             if (!attributeValuesByKey[matchingKey]) attributeValuesByKey[matchingKey] = new Set();
+             attributeValuesByKey[matchingKey].add(val);
+           }
+        }
+      });
+    }
+  });
+
+  const attrKeysArray = Array.from(uniqueAttributeKeys).sort();
   
   // Combine db brands and unique brands
   const combinedBrands = [...dbBrands];
@@ -325,30 +351,60 @@ const Inventory = () => {
               <input className="input-field" placeholder="Product Name *" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
               
               <div style={{ display: 'flex', gap: '16px' }}>
-                <input className="input-field" placeholder="Category (e.g. Outerwear)" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ flex: 1 }} />
-                <input className="input-field" placeholder="Brand (e.g. North Face)" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} style={{ flex: 1 }} />
+                <input list="categories-list" className="input-field" placeholder="Category (e.g. Outerwear)" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} style={{ flex: 1 }} />
+                <datalist id="categories-list">
+                  {uniqueCategories.map(c => <option key={c} value={c} />)}
+                </datalist>
+                
+                <input list="brands-list" className="input-field" placeholder="Brand (e.g. North Face)" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value})} style={{ flex: 1 }} />
+                <datalist id="brands-list">
+                  {combinedBrands.map(b => <option key={b.name} value={b.name} />)}
+                </datalist>
               </div>
 
               <div style={{ display: 'flex', gap: '16px' }}>
-                <input type="number" step="0.01" className="input-field" placeholder="Cost Price *" required value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} style={{ flex: 1 }} />
-                <input type="number" step="0.01" className="input-field" placeholder="Profit Margin %" value={formData.profitPercentage} onChange={e => setFormData({...formData, profitPercentage: e.target.value})} style={{ flex: 1 }} />
+                <input type="number" step="0.01" min="0" className="input-field" placeholder="Cost Price *" required value={formData.costPrice} onChange={e => setFormData({...formData, costPrice: e.target.value})} style={{ flex: 1 }} />
+                <input type="number" step="0.01" min="0" className="input-field" placeholder="Profit Margin %" value={formData.profitPercentage} onChange={e => setFormData({...formData, profitPercentage: e.target.value})} style={{ flex: 1 }} />
                 {!editingProductId && (
-                  <input type="number" className="input-field" placeholder="Initial Stock" value={formData.initialStock} onChange={e => setFormData({...formData, initialStock: e.target.value})} style={{ flex: 1 }} />
+                  <input type="number" min="0" className="input-field" placeholder="Initial Stock" value={formData.initialStock} onChange={e => setFormData({...formData, initialStock: e.target.value})} style={{ flex: 1 }} />
                 )}
               </div>
+
+              {(formData.costPrice || formData.profitPercentage) ? (
+                <div style={{ padding: '12px 16px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                   <span style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Live Selling Price Preview:</span>
+                   <span style={{ fontSize: '20px', fontWeight: 'bold', color: 'var(--primary-color)' }}>
+                      ₹{((parseFloat(formData.costPrice) || 0) * (1 + (parseFloat(formData.profitPercentage) || 0) / 100)).toFixed(2)}
+                   </span>
+                </div>
+              ) : null}
 
               <div style={{ marginTop: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
                   <label style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>Product Variants / Attributes</label>
                   <button type="button" onClick={handleAddAttribute} style={{ background: 'none', border: 'none', color: 'var(--primary-color)', cursor: 'pointer', fontSize: '14px', fontWeight: '500' }}>+ Add Attribute</button>
                 </div>
-                {attributes.map((attr, index) => (
-                  <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
-                    <input className="input-field" placeholder="e.g. Size" value={attr.key} onChange={e => handleAttributeChange(index, 'key', e.target.value)} style={{ flex: 1 }} />
-                    <input className="input-field" placeholder="e.g. L" value={attr.value} onChange={e => handleAttributeChange(index, 'value', e.target.value)} style={{ flex: 1 }} />
-                    <button type="button" onClick={() => handleRemoveAttribute(index)} className="btn btn-secondary" style={{ padding: '8px', color: 'var(--danger)' }}><Trash2 size={16} /></button>
-                  </div>
-                ))}
+                <datalist id="attr-keys-list">
+                  {attrKeysArray.map(k => <option key={k} value={k} />)}
+                </datalist>
+
+                {attributes.map((attr, index) => {
+                  const matchingKey = attrKeysArray.find(k => k.toLowerCase() === attr.key.toLowerCase());
+                  const valuesList = matchingKey && attributeValuesByKey[matchingKey] ? Array.from(attributeValuesByKey[matchingKey]).sort() : [];
+                  
+                  return (
+                    <div key={index} style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                      <input list="attr-keys-list" className="input-field" placeholder="e.g. Size" value={attr.key} onChange={e => handleAttributeChange(index, 'key', e.target.value)} style={{ flex: 1 }} />
+                      <input list={`attr-values-list-${index}`} className="input-field" placeholder="e.g. L" value={attr.value} onChange={e => handleAttributeChange(index, 'value', e.target.value)} style={{ flex: 1 }} />
+                      
+                      <datalist id={`attr-values-list-${index}`}>
+                        {valuesList.map(v => <option key={v} value={v} />)}
+                      </datalist>
+                      
+                      <button type="button" onClick={() => handleRemoveAttribute(index)} className="btn btn-secondary" style={{ padding: '8px', color: 'var(--danger)' }}><Trash2 size={16} /></button>
+                    </div>
+                  );
+                })}
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ padding: '12px', marginTop: '16px' }}>

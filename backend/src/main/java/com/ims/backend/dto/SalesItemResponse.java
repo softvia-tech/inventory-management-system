@@ -1,6 +1,7 @@
 package com.ims.backend.dto;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.UUID;
 
 public record SalesItemResponse(
@@ -9,5 +10,7 @@ public record SalesItemResponse(
     String productName,
     Integer quantitySold,
     BigDecimal unitPriceAtSale,
-    BigDecimal subTotal
+    BigDecimal subTotal,
+    Integer quantityReturned,
+    Map<String, String> attributes
 ) {}
